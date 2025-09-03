@@ -1,0 +1,76 @@
+## make follower lists mutually exclusive
+## C1 = far-right users; C2 = non-far-right users
+
+import pandas as pd
+from google.colab import files  # Only needed in Colab
+
+# Load files, forcing all columns to be read as strings
+c1_sheets = pd.read_excel("C1_far-right_followers1.xlsx", sheet_name=None, dtype=str)
+c2_sheets = pd.read_excel("C2final_left-leaning_followers.xlsx", sheet_name=None, dtype=str)
+
+# Concatenate all sheets
+c1 = pd.concat(c1_sheets.values(), ignore_index=True)
+c2 = pd.concat(c2_sheets.values(), ignore_index=True)
+
+# Drop blank rows
+c1.dropna(how='all', inplace=True)
+c2.dropna(how='all', inplace=True)
+
+# Store original row count
+original_len = len(c1)
+
+# Get unique identifiers (usernames) from column C (index 2)
+c1_users = c1.iloc[:, 2].astype(str)
+c2_users = c2.iloc[:, 2].astype(str)
+
+# Filter out users in C2 from C1
+c1_filtered = c1[~c1_users.isin(c2_users)]
+
+# Drop any remaining all-empty rows
+c1_filtered.dropna(how='all', inplace=True)
+
+# Optionally remove duplicates (based on full rows)
+c1_filtered.drop_duplicates(inplace=True)
+
+# Show how many rows were removed
+rows_removed = original_len - len(c1_filtered)
+print(f"Number of rows removed from C1: {rows_removed}")
+
+# Save output
+output_file = "C1_exclusive_users_final1.xlsx"
+c1_filtered.to_excel(output_file, index=False)
+files.download(output_file)
+
+## Remove exclusive far-right users from C2
+
+# Load both Excel files
+c1 = pd.concat(pd.read_excel("C1_exclusive_users_unique.xlsx", sheet_name=None), ignore_index=True)
+c2 = pd.concat(pd.read_excel("C2_left-leaning_followers.xlsx", sheet_name=None), ignore_index=True)
+
+# Drop fully blank rows
+c1.dropna(how='all', inplace=True)
+c2.dropna(how='all', inplace=True)
+
+# Store original C2 length
+original_len = len(c2)
+
+# Use column C (index 2) as the unique identifier (username)
+c1_usernames = c1.iloc[:, 2].astype(str)
+c2_filtered = c2[~c2.iloc[:, 2].astype(str).isin(c1_usernames)]
+
+# Drop blank rows and remove full-row duplicates
+c2_filtered.dropna(how='all', inplace=True)
+c2_filtered.drop_duplicates(inplace=True)
+
+# Print how many rows were removed
+rows_removed = original_len - len(c2_filtered)
+print(f"✅ Number of rows removed from C2: {rows_removed}")
+
+# Print final counts
+print("Final number of rows in C2_exclusive_users_unique.xlsx: {len(c2_filtered)}")
+print("Total number of rows in C1_exclusive_users_unique.xlsx: {len(c1)}")
+
+# Save filtered C2 to new Excel file
+output_file = "C2_exclusive_users_unique.xlsx"
+c2_filtered.to_excel(output_file, index=False)
+files.download(output_file)
