@@ -1,0 +1,216 @@
+## 1. Log ratio for all lemmas across both corpora
+
+# 2. Import libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import emoji
+import spacy
+from collections import Counter
+from math import log2
+
+# 3. Load French Spacy model
+nlp = spacy.load("fr_core_news_md")
+
+# 4. Load datasets
+right_path = "/content/drive/My Drive/_thesis_dogwhistles/Analyze-tweets/right-cleaned-french-tweets.csv"
+left_path = "/content/drive/My Drive/_thesis_dogwhistles/Analyze-tweets/left-cleaned-french-tweets.csv"
+
+right_df = pd.read_csv(right_path)
+left_df = pd.read_csv(left_path)
+
+# 5. Extract text content
+right_texts = right_df['content'].dropna().astype(str).tolist()
+left_texts = left_df['content'].dropna().astype(str).tolist()
+
+# 6. Function to lemmatize and include emojis
+def tokenize_and_lemmatize(texts):
+    lemma_counter = Counter()
+    for doc in nlp.pipe(texts, batch_size=100, disable=["ner"]):
+        for token in doc:
+            if token.is_alpha or emoji.is_emoji(token.text):
+                lemma = token.lemma_.lower()
+                lemma_counter[lemma] += 1
+    return lemma_counter
+
+# 7. Compute lemma frequencies
+print("Processing right corpus...")
+right_lemmas = tokenize_and_lemmatize(right_texts)
+print("Processing left corpus...")
+left_lemmas = tokenize_and_lemmatize(left_texts)
+
+# 8. Create a DataFrame with counts
+# Create lemma set: only lemmas appearing in BOTH corpora (intersection)
+common_lemmas = set(left_lemmas.keys()) & set(right_lemmas.keys())
+
+# Create aligned frequency dict only for common lemmas
+data = {
+    'lemma': list(common_lemmas),
+    'left': [left_lemmas[lemma] for lemma in common_lemmas],
+    'right': [right_lemmas[lemma] for lemma in common_lemmas]
+}
+
+# Construct DataFrame
+df = pd.DataFrame(data).set_index('lemma')
+
+# 9. Compute log ratio
+df['log_ratio'] = np.log2((df['left'] + 1) / (df['right'] + 1))
+
+# 10. Filter by frequency threshold
+freq_threshold = 5
+df_filtered = df[(df['left'] > freq_threshold) | (df['right'] > freq_threshold)]
+
+# 11. Sort by absolute log ratio
+df_filtered['abs_log_ratio'] = df_filtered['log_ratio'].abs()
+df_sorted = df_filtered.sort_values(by='abs_log_ratio', ascending=False)
+
+# 12. Show top 30 most divergent lemmas
+print("Top divergent lemmas:")
+print(df_sorted.head(30)[['left', 'right', 'log_ratio']])
+
+# Sort by absolute log ratio descending (highest difference first)
+df_filtered['abs_log_ratio'] = df_filtered['log_ratio'].abs()
+df_ranked = df_filtered.sort_values(by='abs_log_ratio', ascending=False)
+
+# Save CSV (adjust path as needed)
+output_path = "/content/drive/My Drive/_thesis_dogwhistles/Analyze-tweets/lemmas_ranked_by_diff_freq.csv"
+df_ranked.to_csv(output_path, encoding='utf-8-sig')
+
+print(f"Saved ranked lemma frequencies to:\n{output_path}")
+
+----------------------------------------------
+## log ratios for all multi-words
+import pandas as pd
+import numpy as np
+import spacy
+from collections import Counter
+import os
+
+# Load French spaCy model
+nlp = spacy.load("fr_core_news_md")
+
+# Set paths
+base_path = "/content/drive/My Drive/_thesis_dogwhistles/Analyze-tweets"
+right_path = os.path.join(base_path, "right-cleaned-french-tweets.csv")
+left_path = os.path.join(base_path, "left-cleaned-french-tweets.csv")
+output_path = os.path.join(base_path, "top_noun_phrases_with_log_ratios.csv")
+
+# Load datasets
+right_df = pd.read_csv(right_path)
+left_df = pd.read_csv(left_path)
+
+right_texts = right_df['content'].dropna().astype(str).tolist()
+left_texts = left_df['content'].dropna().astype(str).tolist()
+
+# Function to extract noun phrases with adjectives
+def extract_noun_phrases(texts):
+    counter = Counter()
+    for doc in nlp.pipe(texts, batch_size=50, disable=["ner"]):
+        for chunk in doc.noun_chunks:
+            phrase = chunk.text.lower()
+            # Keep only noun phrases that contain at least one adjective
+            if any(tok.pos_ == "ADJ" for tok in chunk):
+                counter[phrase] += 1
+    return counter
+
+# Extract noun phrases
+print("Processing right corpus...")
+right_nps = extract_noun_phrases(right_texts)
+print("Processing left corpus...")
+left_nps = extract_noun_phrases(left_texts)
+
+# Union of all phrases
+all_phrases = set(right_nps.keys()) | set(left_nps.keys())
+
+# Compute frequency table with log ratios
+rows = []
+for phrase in all_phrases:
+    left_freq = left_nps.get(phrase, 0)
+    right_freq = right_nps.get(phrase, 0)
+    log_ratio = np.log2((left_freq + 1) / (right_freq + 1))
+    rows.append({
+        "phrase": phrase,
+        "left": left_freq,
+        "right": right_freq,
+        "log_ratio": log_ratio,
+        "abs_log_ratio": abs(log_ratio)
+    })
+
+df = pd.DataFrame(rows)
+
+# Get top 5 from each corpus
+top_left = df.sort_values(by="left", ascending=False).head(5)
+top_right = df.sort_values(by="right", ascending=False).head(5)
+
+# Combine and deduplicate
+top_nps_df = pd.concat([top_left, top_right]).drop_duplicates(subset="phrase")
+
+# Save to CSV
+top_nps_df.to_csv(output_path, index=False)
+print("Saved to:", output_path)
+
+# Display
+top_nps_df
+
+------------------------------------------
+## log ratio named entities
+
+import pandas as pd
+import numpy as np
+import spacy
+from collections import Counter
+from math import log2
+
+# Load French spaCy model
+nlp = spacy.load("fr_core_news_md")
+
+# File paths
+right_path = "/content/drive/My Drive/_thesis_dogwhistles/Analyze-tweets/right-cleaned-french-tweets.csv"
+left_path = "/content/drive/My Drive/_thesis_dogwhistles/Analyze-tweets/left-cleaned-french-tweets.csv"
+output_csv_path = "/content/drive/My Drive/_thesis_dogwhistles/Analyze-tweets/named_entities_frequency_diff.csv"
+
+# Load datasets
+right_df = pd.read_csv(right_path)
+left_df = pd.read_csv(left_path)
+
+# Extract text content
+right_texts = right_df['content'].dropna().astype(str).tolist()
+left_texts = left_df['content'].dropna().astype(str).tolist()
+
+def extract_named_entities(texts):
+    ent_counter = Counter()
+    for doc in nlp.pipe(texts, batch_size=100, disable=["tagger", "parser"]):
+        for ent in doc.ents:
+            ent_text = ent.text.lower()
+            ent_counter[ent_text] += 1
+    return ent_counter
+
+print("Processing right corpus entities...")
+right_ents = extract_named_entities(right_texts)
+
+print("Processing left corpus entities...")
+left_ents = extract_named_entities(left_texts)
+
+# Consider only entities appearing in both corpora
+common_ents = set(right_ents.keys()) & set(left_ents.keys())
+
+data = {
+    'entity': list(common_ents),
+    'left': [left_ents[ent] for ent in common_ents],
+    'right': [right_ents[ent] for ent in common_ents]
+}
+
+df = pd.DataFrame(data).set_index('entity')
+
+# Compute log ratio: log2((left + 1) / (right + 1))
+df['log_ratio'] = np.log2((df['left'] + 1) / (df['right'] + 1))
+
+# Sort by absolute log ratio descending (highest difference first)
+df['abs_log_ratio'] = df['log_ratio'].abs()
+df_sorted = df.sort_values(by='abs_log_ratio', ascending=False).drop(columns='abs_log_ratio')
+
+# Save to CSV
+df_sorted.to_csv(output_csv_path, encoding='utf-8-sig')
+
+print(f"Saved named entities frequency difference CSV to:\n{output_csv_path}")
