@@ -1,0 +1,100 @@
+# for Colab
+from google.colab import drive
+drive.mount('/content/drive')
+
+# Only keep French tweets
+!pip install -q langdetect
+from langdetect import detect, DetectorFactory
+DetectorFactory.seed = 42  # Make results deterministic
+def is_french_langdetect(text):
+    try:
+        return detect(str(text)) == 'fr'
+    except:
+        return False  # Skip unrecognizable text
+import pandas as pd
+
+# Set file path
+file_path = '/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/new_left_10462.csv'
+
+# Load CSV and ensure 'id' is string
+df = pd.read_csv(file_path, dtype={'id': str})
+df = df.dropna(subset=['content'])
+
+# Count before
+total_before = len(df)
+
+# Filter French tweets using langdetect
+df_fr = df[df['content'].apply(is_french_langdetect)].reset_index(drop=True)
+
+# Count after
+total_after = len(df_fr)
+removed = total_before - total_after
+percentage_removed = (removed / total_before) * 100
+
+# Show summary
+print(f"Total tweets before filtering: {total_before}")
+print(f"Total tweets after filtering: {total_after}")
+print(f"Tweets removed: {removed} ({percentage_removed:.2f}%)")
+
+# Show sample
+if len(df_fr) > 0:
+    print("\nSample of 5 French tweets:")
+    print(df_fr['content'].sample(5, random_state=42).to_string(index=False))
+else:
+    print("No French tweets detected.")
+
+# Save result
+output_path = '/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/left-new-french-tweets.csv'
+df_fr.to_csv(output_path, index=False)
+print(f"French tweets saved to: {output_path}")
+
+# Define cleaning function
+import pandas as pd
+import re
+
+def clean_text(text):
+    text = str(text)
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text)          # Remove URLs
+    text = re.sub(r'@\w+', '', text)                             # Remove @usernames
+    text = re.sub(r'#(\w+)', r'\1', text)                        # Remove leading #
+    text = re.sub(r'\s+', ' ', text).strip()                     # Normalize whitespace
+    text = text.lower()                                          # Lowercase text
+
+    return text
+
+def clean_tweets(input_path, output_path):
+    # Load CSV
+    df = pd.read_csv(input_path, dtype={'id': str})
+
+    # Remove rows where 'content' is missing
+    df = df.dropna(subset=['content'])
+
+    # Apply cleaning function
+    df['content'] = df['content'].apply(clean_text)
+
+    # Remove empty content rows again
+    df = df[df['content'].str.strip() != '']
+
+    # Output info
+    print(f"Remaining rows: {len(df)}")
+    total_tokens = df['content'].str.split().str.len().sum()
+    print(f"Total number of tokens: {total_tokens}")
+
+    # Save cleaned file
+    df.to_csv(output_path, index=False)
+
+    return df
+
+# run function
+cleaned_df = clean_tweets('file_path')
+
+# inspect random samples
+# Load the final cleaned file
+df = pd.read_csv('file_path', dtype={'id': str})
+
+# Check basic info
+print(f"Loaded {df.shape[0]} tweets.")
+print("Column names:", df.columns.tolist())
+
+# Show 5 random tweets
+df.sample(5, random_state=645)
