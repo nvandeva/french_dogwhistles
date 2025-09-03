@@ -1,0 +1,54 @@
+## search for quotes
+
+import pandas as pd
+import re
+from collections import Counter
+
+# IMPORTANT: Please upload your files or change the file paths accordingly
+# File paths
+right_path = "/content/drive/MyDrive/_thesis_dogwhistles/Prepare-annotation/RIGHT/C2 - RIGHT.csv"
+left_path = "/content/drive/MyDrive/_thesis_dogwhistles/Prepare-annotation/LEFT/C1 - LEFT.csv"
+output_txt_path = "/content/drive/My Drive/_thesis_dogwhistles/Analyze-tweets/all_quotes.txt"
+
+# Load datasets
+try:
+    right_df = pd.read_csv(right_path)
+    left_df = pd.read_csv(left_path)
+except FileNotFoundError:
+    print("One or both input files not found. Please ensure the paths are correct.")
+    # Exit the script if files are not found to prevent errors
+    exit()
+
+# Extract text content and combine both corpora
+right_texts = right_df['content'].dropna().astype(str).tolist()
+left_texts = left_df['content'].dropna().astype(str).tolist()
+all_texts = right_texts + left_texts
+
+def extract_quotes(texts):
+    """
+    Extracts unique quoted text from a list of strings using regular expressions.
+    Handles double quotes (""), single quotes (''), and French guillemets («»).
+    """
+    quote_set = set()
+    # The regex pattern looks for text inside double quotes, single quotes, or French guillemets
+    # The non-greedy `(.*?)` is used to capture the content between the quotes
+    pattern = re.compile(r'«(.*?)»|"(.*?)"|\'(.*?)\'')
+    
+    for text in texts:
+        # findall returns a list of tuples, one for each match
+        # We flatten the list and filter out empty strings (which result from the regex's OR groups)
+        matches = [match for group in pattern.findall(text) for match in group if match]
+        for quote in matches:
+            # We add the lowercase version of the quote to a set to ensure uniqueness
+            quote_set.add(quote.lower())
+    return sorted(list(quote_set))
+
+print("Processing quotes from both corpora...")
+all_quotes = extract_quotes(all_texts)
+
+# Save the list of unique quotes to a text file
+with open(output_txt_path, 'w', encoding='utf-8') as f:
+    for quote in all_quotes:
+        f.write(quote + '\n')
+
+print(f"Saved a list of all unique quotes to:\n{output_txt_path}")
