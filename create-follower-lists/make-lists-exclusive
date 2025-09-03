@@ -4,6 +4,10 @@
 import pandas as pd
 from google.colab import files  # Only needed in Colab
 
+# upload files in Colab
+from google.colab import files
+uploaded = files.upload()
+
 # Load files, forcing all columns to be read as strings
 c1_sheets = pd.read_excel("C1_far-right_followers1.xlsx", sheet_name=None, dtype=str)
 c2_sheets = pd.read_excel("C2final_left-leaning_followers.xlsx", sheet_name=None, dtype=str)
