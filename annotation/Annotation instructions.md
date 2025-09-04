@@ -154,4 +154,4 @@ The traditional center-left Socialist Party of France. Historically dominant in 
 **ZFE (Zone à Faibles Émissions)**  
  *Low Emission Zone* — a government policy restricting older, more polluting vehicles in certain urban areas.
 
-*Thank you\! Your careful annotation will help me better understand how particular terms express different political stances, and how they might eventually be used by French politicians to manipulate audiences.*
+*Thank you\! your careful annotation will help me better understand how particular terms can have varying meanings depending on the community who uses them.*
