@@ -1,0 +1,201 @@
+import pandas as pd
+import re
+import spacy
+!pip install -q langdetect
+from langdetect import detect, DetectorFactory
+from google.colab import drive
+drive.mount('/content/drive')
+
+## 1. Only keep French tweets
+DetectorFactory.seed = 42  # Make results deterministic
+def is_french_langdetect(text):
+    try:
+        return detect(str(text)) == 'fr'
+    except:
+        return False  # Skip unrecognizable text
+# Set file path
+file_path = '/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/new_left_10462.csv'
+
+# Load CSV and ensure 'id' is string
+df = pd.read_csv(file_path, dtype={'id': str})
+df = df.dropna(subset=['content'])
+
+# Count before
+total_before = len(df)
+
+# Filter French tweets using langdetect
+df_fr = df[df['content'].apply(is_french_langdetect)].reset_index(drop=True)
+
+# Count after
+total_after = len(df_fr)
+removed = total_before - total_after
+percentage_removed = (removed / total_before) * 100
+
+# Show summary
+print(f"Total tweets before filtering: {total_before}")
+print(f"Total tweets after filtering: {total_after}")
+print(f"Tweets removed: {removed} ({percentage_removed:.2f}%)")
+
+# Show sample
+if len(df_fr) > 0:
+    print("\nSample of 5 French tweets:")
+    print(df_fr['content'].sample(5, random_state=42).to_string(index=False))
+else:
+    print("No French tweets detected.")
+
+# Save result
+output_path = '/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/left-new-french-tweets.csv'
+df_fr.to_csv(output_path, index=False)
+print(f"French tweets saved to: {output_path}")
+
+## Clean text
+def clean_text(text):
+    text = str(text)
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text)          # Remove URLs
+    text = re.sub(r'@\w+', '', text)                             # Remove @usernames
+    text = re.sub(r'#(\w+)', r'\1', text)                        # Remove leading #
+    text = re.sub(r'\s+', ' ', text).strip()                     # Normalize whitespace
+    text = text.lower()                                          # Lowercase text
+
+    # Normalize reduplications
+    for pattern, replacement in reduplications.items():
+        text = re.sub(pattern, replacement, text)
+
+    # Standardize abbreviations
+    for pattern, replacement in abbreviations.items():
+        text = re.sub(pattern, replacement, text)
+
+    return text
+
+def clean_tweets(input_path, output_path):
+    # Load CSV
+    df = pd.read_csv(input_path, dtype={'id': str})
+
+    # Remove rows where 'content' is missing
+    df = df.dropna(subset=['content'])
+
+    # Apply cleaning function
+    df['content'] = df['content'].apply(clean_text)
+
+    # Remove empty content rows again
+    df = df[df['content'].str.strip() != '']
+
+    # Output info
+    print(f"Remaining rows: {len(df)}")
+    total_tokens = df['content'].str.split().str.len().sum()
+    print(f"Total number of tokens: {total_tokens}")
+
+    # Save cleaned file
+    df.to_csv(output_path, index=False)
+
+    return df
+
+# Run your existing cleaning function
+cleaned_df = clean_tweets('') # output file will still be in /content
+# inspect random samples
+
+import pandas as pd
+
+# Load the final cleaned file
+df = pd.read_csv('/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/left-new-cleaned-french-tweets.csv', dtype={'id': str})
+
+# Check basic info
+print(f"Loaded {df.shape[0]} tweets.")
+print("Column names:", df.columns.tolist())
+
+# Show 5 random tweets
+df.sample(5, random_state=645)
+
+## remove duplicates
+# Read both CSVs with all data as strings
+df_dest = pd.read_csv('/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/left-cleaned-french-tweets.csv', dtype=str, keep_default_na=False)
+df_source = pd.read_csv('/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/left-new-cleaned-french-tweets.csv', dtype=str, keep_default_na=False)
+
+# Combine both
+initial_count = len(df_dest) + len(df_source)
+df_combined = pd.concat([df_dest, df_source], ignore_index=True)
+
+# Drop exact duplicates
+df_deduped = df_combined.drop_duplicates()
+
+# Save the deduplicated dataframe back to destination
+df_deduped.to_csv('/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/left-cleaned-french-tweets.csv', index=False)
+
+# Report how many duplicates were removed
+duplicates_removed = initial_count - len(df_deduped)
+print(f"{duplicates_removed} duplicate rows removed.")
+len(df_source), len(df_dest), len(df_deduped)
+
+df = pd.read_csv('/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/left-cleaned-french-tweets.csv', dtype={'id': str})
+
+# Drop missing usernames
+usernames = df['username'].dropna()
+
+# Count unique usernames
+unique_usernames = usernames.nunique()
+print(f"Number of unique usernames: {unique_usernames}")
+
+# Grouping tweets by user and counting them
+user_tweet_counts = df['username'].value_counts()
+
+# Show top N most frequent usernames (adjust N if needed)
+N = 10
+print(f"Top {N} most frequent usernames:")
+print(usernames.value_counts().head(N))
+
+# Load spaCy French model
+nlp = spacy.load("fr_core_news_sm")
+
+# Load your dataset
+file_path = '/content/drive/My Drive/_thesis_dogwhistles/Clean-tweets/left-cleaned-french-tweets.csv'
+df = pd.read_csv(file_path, dtype={'id': str})
+
+# Drop rows with missing content
+df = df.dropna(subset=['content'])
+
+# === Tweet/User Stats ===
+num_tweets = len(df)
+num_users = df['username'].nunique()
+avg_tweets_per_user = num_tweets / num_users if num_users else 0
+
+# === Linguistic Stats ===
+total_tokens = 0
+word_count = 0
+content_word_count = 0
+lemmas = set()
+
+# === Process all documents ===
+for doc in nlp.pipe(df['content'].astype(str), batch_size=1000):
+    # All non-space tokens
+    tokens = [token for token in doc if not token.is_space]
+    total_tokens += len(tokens)
+
+    # Words = alphabetic tokens (exclude numbers and punctuation)
+    words = [token for token in tokens if token.is_alpha]
+    word_count += len(words)
+
+    # Content words = words excluding stopwords, pronouns, determiners
+    content_words = [
+        token for token in words
+        if not token.is_stop and token.pos_ not in {"PRON", "DET"}
+    ]
+    content_word_count += len(content_words)
+
+    # Lemmas from words (not content words)
+    lemmas.update(token.lemma_.lower() for token in words)
+
+# Token-to-type ratio (based on total tokens and unique lemmas)
+token_type_ratio = total_tokens / len(lemmas) if lemmas else 0
+
+# === Report ===
+print("===== Tweet/User Stats =====")
+print(f"Total number of tweets: {num_tweets}")
+print(f"Total number of unique users: {num_users}")
+print(f"Average number of tweets per user: {avg_tweets_per_user:.2f}")
+
+print("\n===== Linguistic Stats =====")
+print(f"Total number of tokens (excluding spaces): {total_tokens}")
+print(f"Total number of words (excluding numbers and punctuation): {word_count}")
+print(f"Total number of content words: {content_word_count}")
+print(f"Total number of unique lemmas: {len(lemmas)}")
+print(f"Token-to-type ratio: {token_type_ratio:.2f}")
